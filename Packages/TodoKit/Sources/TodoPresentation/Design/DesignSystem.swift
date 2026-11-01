@@ -7,33 +7,28 @@ func localized(_ key: String) -> String { String(localized: String.LocalizationV
 
 extension TodoStatus {
     var color: Color {
-        switch self { case .todo: .secondary; case .inProgress: .indigo; case .done: .teal }
-    }
-    var symbol: String {
-        switch self { case .todo: "circle"; case .inProgress: "circle.lefthalf.filled"; case .done: "checkmark.circle.fill" }
+        switch self { case .todo: .secondary; case .inProgress: .accentColor; case .done: .teal }
     }
 }
 
 struct StatusBadge: View {
     let status: TodoStatus
     var body: some View {
-        Label(localized(status.titleKey), systemImage: status.symbol)
+        Text(localized(status.titleKey))
             .font(.caption.weight(.medium))
             .foregroundStyle(status.color)
-            .padding(.horizontal, 9).padding(.vertical, 5)
-            .background(status.color.opacity(0.10), in: Capsule())
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(status.color.opacity(0.15), in: Capsule())
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
 
 struct ErrorNotice: View {
     let message: String
     var body: some View {
-        Label(localized(message), systemImage: "exclamationmark.circle.fill")
-            .font(.subheadline)
-            .foregroundStyle(.red)
+        Text(localized(message))
+            .font(.subheadline).foregroundStyle(.red)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(.red.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
             .accessibilityIdentifier("errorNotice")
     }
 }
@@ -44,15 +39,26 @@ struct PrimaryButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            ZStack {
+                Text(localized(title)).opacity(busy ? 0 : 1)
                 if busy { ProgressView().tint(.white) }
-                Text(localized(title)).fontWeight(.semibold)
-            }.frame(maxWidth: .infinity).padding(.vertical, 9)
+            }.frame(maxWidth: .infinity, minHeight: 22)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .buttonBorderShape(.roundedRectangle(radius: 16))
+        .buttonStyle(.borderedProminent).controlSize(.large)
         .disabled(busy)
+    }
+}
+
+struct InputField<Content: View>: View {
+    let title: String
+    var error: String?
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(localized(title)).font(.subheadline).foregroundStyle(.secondary)
+            content().textFieldStyle(.roundedBorder).accessibilityLabel(localized(title))
+            FieldError(message: error)
+        }
     }
 }
 
@@ -65,6 +71,4 @@ struct FieldError: View {
         }
     }
 }
-
-
 #endif

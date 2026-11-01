@@ -3,15 +3,16 @@ import SwiftUI
 import TodoDomain
 import TodoApplication
 
-private struct EditorRoute: Identifiable {
+private struct EditorRoute: Identifiable, Hashable {
     let id = UUID()
     let todo: Todo?
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 struct TodoListView: View {
     @State private var model: TodoListViewModel
     @State private var editor: EditorRoute?
-    @State private var confirmSignOut = false
     @Environment(\.scenePhase) private var scenePhase
     private let session: SessionViewModel
 
@@ -21,109 +22,73 @@ struct TodoListView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                heading
-                Picker("Period", selection: $model.period) {
-                    ForEach(TodoPeriod.allCases) { period in Text(localized(period.titleKey)).tag(period) }
-                }.pickerStyle(.segmented).accessibilityIdentifier("periodPicker")
-                if let error = model.error {
-                    VStack(spacing: 10) {
-                        ErrorNotice(message: error)
-                        Button("Try again") { Task { await model.load() } }.buttonStyle(.bordered)
-                    }
-                }
+        VStack(spacing: 0) {
+            Picker("Period", selection: $model.period) {
+                ForEach(TodoPeriod.allCases) { period in Text(localized(period.titleKey)).tag(period) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .accessibilityIdentifier("periodPicker")
+            Divider()
+            List(model.todos) { todo in
+                Button { editor = EditorRoute(todo: todo) } label: { TodoRow(todo: todo) }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("todoRow-\(todo.id)")
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+            }
+            .listStyle(.plain)
+            .safeAreaPadding(.bottom, 88)
+            .refreshable { await model.load() }
+            .overlay {
                 if model.isLoading && !model.hasLoaded {
-                    ProgressView().frame(maxWidth: .infinity, minHeight: 220).accessibilityLabel("Loading tasks")
+                    ProgressView().accessibilityLabel("Loading tasks")
+                } else if let error = model.error, !model.hasLoaded {
+                    ListPlaceholder(title: error, retry: { Task { await model.load() } })
                 } else if model.hasLoaded && model.todos.isEmpty {
-                    ContentUnavailableView {
-                        Label("A little breathing room", systemImage: "checklist")
-                    } description: {
-                        Text("No tasks in this period. Add something you want to get done.")
-                    } actions: {
-                        Button("Add a task") { editor = EditorRoute(todo: nil) }
-                            .buttonStyle(.borderedProminent)
-                    }.padding(.top, 32)
-                } else {
-                    taskList
+                    ListPlaceholder(title: model.period.emptyTitleKey, subtitle: "Tap + to add a todo")
+                        .allowsHitTesting(false)
                 }
             }
-            .padding(20)
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
         }
-        .background(Color(.systemGroupedBackground))
-        .refreshable { await model.load() }
-        .navigationTitle("My tasks")
+        .background(Color(.systemBackground))
+        .navigationTitle("My todos")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    if let email = session.user?.email { Text(email) }
-                    Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        confirmSignOut = true
-                    }.disabled(session.isSigningOut)
+                Button {
+                    Task { await session.signOut() }
                 } label: {
-                    Image(systemName: "person.crop.circle").font(.title3)
-                }.accessibilityLabel("Account").accessibilityIdentifier("accountMenu")
+                    Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .disabled(session.isSigningOut)
+                .accessibilityIdentifier("logoutButton")
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Spacer()
-                Button {
-                    editor = EditorRoute(todo: nil)
-                } label: {
-                    Label("New task", systemImage: "plus").font(.headline).padding(.vertical, 8).padding(.horizontal, 10)
-                }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-                    .shadow(color: .indigo.opacity(0.18), radius: 12, y: 6)
-                    .accessibilityIdentifier("addTask")
-            }.padding(.horizontal, 24).padding(.vertical, 12)
+        .overlay(alignment: .bottomTrailing) {
+            Button { editor = EditorRoute(todo: nil) } label: {
+                Label("Add todo", systemImage: "plus")
+                    .labelStyle(.iconOnly).font(.title2)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
+            .padding(16)
+            .accessibilityIdentifier("addTask")
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let error = model.error, model.hasLoaded {
+                ErrorNotice(message: error).padding(16).background(.regularMaterial)
+            }
         }
         .task(id: model.period) { await model.load() }
         .task { await session.loadUser() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.load() } }
         }
-        .sheet(item: $editor, onDismiss: { Task { await model.load() } }) { route in
-            NavigationStack { TodoEditorView(todo: route.todo, useCases: session.todos) }
+        .navigationDestination(item: $editor) { route in
+            TodoEditorView(todo: route.todo, useCases: session.todos)
         }
-        .confirmationDialog("Sign out of your account?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await session.signOut() } }
-            Button("Cancel", role: .cancel) { }
-        }
-    }
-
-    private var heading: some View {
-        HStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                    .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
-                Text("One thing at a time.")
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                if model.hasLoaded {
-                    Text("\(model.completed) of \(model.todos.count) completed")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("completionCount")
-                }
-            }
-            Spacer(minLength: 0)
-            ZStack {
-                Circle().stroke(.indigo.opacity(0.10), lineWidth: 7)
-                Circle().trim(from: 0, to: model.todos.isEmpty ? 0 : Double(model.completed) / Double(model.todos.count))
-                    .stroke(.indigo, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Image(systemName: "checkmark").font(.title3.weight(.bold)).foregroundStyle(.indigo)
-            }.frame(width: 54, height: 54).accessibilityHidden(true)
-        }.padding(.vertical, 10)
-    }
-
-    private var taskList: some View {
-        LazyVStack(spacing: 12) {
-            ForEach(model.todos) { todo in
-                Button { editor = EditorRoute(todo: todo) } label: { TodoRow(todo: todo) }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("todoRow-\(todo.id)")
-            }
+        .onChange(of: editor?.id) { previous, current in
+            if previous != nil && current == nil { Task { await model.load() } }
         }
     }
 }
@@ -131,30 +96,44 @@ struct TodoListView: View {
 private struct TodoRow: View {
     let todo: Todo
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RoundedRectangle(cornerRadius: 3).fill(todo.status.color).frame(width: 3)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(todo.dueAt, style: .time).font(.subheadline.weight(.semibold)).foregroundStyle(.indigo)
-                    Text(todo.dueAt, format: .dateTime.day().month(.abbreviated))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
-                }
-                Text(todo.title).font(.headline).foregroundStyle(.primary).lineLimit(3)
-                    .strikethrough(todo.status == .done, color: .secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if !todo.description.isEmpty {
-                    Text(todo.description).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                StatusBadge(status: todo.status)
-            }
+        HStack(spacing: 16) {
+            Text(timeText).font(.body.weight(.semibold)).monospacedDigit().foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(todo.title).font(.body).foregroundStyle(.primary).lineLimit(1)
+                Text(dateText).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            StatusBadge(status: todo.status)
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+
+    private var timeText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: todo.dueAt)
+    }
+    private var dateText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, d MMM yyyy"
+        let value = formatter.string(from: todo.dueAt)
+        return value.prefix(1).uppercased() + String(value.dropFirst())
     }
 }
 
+private struct ListPlaceholder: View {
+    let title: String
+    var subtitle: String?
+    var retry: (() -> Void)?
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checklist").font(.title2).foregroundStyle(.secondary)
+                .padding(.top, 64).accessibilityHidden(true)
+            Text(localized(title)).font(.headline).multilineTextAlignment(.center)
+            if let subtitle { Text(localized(subtitle)).font(.subheadline).foregroundStyle(.secondary) }
+            if let retry { Button("Retry", action: retry).buttonStyle(.borderedProminent) }
+        }.frame(maxWidth: 360).padding(32)
+    }
+}
 #endif

@@ -4,7 +4,6 @@ import TodoDomain
 import TodoApplication
 import TodoData
 import TodoPresentation
-import GoogleSignInSwift
 
 @MainActor @Observable
 private final class Bootstrap {
@@ -48,7 +47,7 @@ struct ToDoApp: App {
                     actions: { Button("Try again") { bootstrap.load() } }
                 } else { ProgressView() }
             }
-            .tint(.indigo)
+            .tint(.accentColor)
             .task { if bootstrap.session == nil { bootstrap.load() } }
             .onOpenURL { GoogleSignInService.handle($0) }
         }
@@ -58,9 +57,10 @@ struct ToDoApp: App {
 func localized(_ key: String) -> String { String(localized: String.LocalizationValue(key)) }
 
 private struct PlatformGoogleButton: View {
-    @Environment(\.colorScheme) private var colorScheme
     let action: @MainActor () -> Void
     var body: some View {
-        GoogleSignInButton(scheme: colorScheme == .dark ? .dark : .light, style: .wide, action: action)
+        Button(action: action) {
+            Text("Continue with Google").frame(maxWidth: .infinity, minHeight: 22)
+        }.buttonStyle(.bordered).controlSize(.large)
     }
 }

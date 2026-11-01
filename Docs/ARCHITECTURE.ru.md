@@ -25,7 +25,7 @@ flowchart TD
 | TodoPresentation | SwiftUI Views, ViewModel, состояние экранов, навигация, отображение ошибок и статусов | TodoApplication, TodoDomain, Observation, SwiftUI, Foundation |
 | ToDo/App | Создание реализаций и Use Cases, конфигурация, адаптер Google SDK, передача брендированной кнопки, Debug demo | Все необходимые внешние реализации и модули |
 
-У Domain нет Codable, API DTO, OAuth SDK, токенов, UI-текстов или SwiftUI. Data не зависит от Presentation. Presentation не хранит репозитории и не вызывает их напрямую. Google SDK не входит в зависимости пакета: приложение реализует `GoogleIdentityProvider` и внедряет его в Use Cases. Официальная Google-кнопка передаётся в корневой экран как UI builder.
+У Domain нет Codable, API DTO, OAuth SDK, токенов, UI-текстов или SwiftUI. Data не зависит от Presentation. Presentation не хранит репозитории и не вызывает их напрямую. Google SDK не входит в зависимости пакета: приложение реализует `GoogleIdentityProvider` и внедряет его в Use Cases. Нативная кнопка Google с текстом исходного приложения передаётся в корневой экран как UI builder.
 
 ## Путь действия пользователя
 
@@ -36,7 +36,7 @@ flowchart TD
 5. Data декодирует DTO и преобразует его в entity. Возвращённые entities не содержат деталей JSON.
 6. ViewModel меняет наблюдаемое состояние, SwiftUI обновляет соответствующую часть интерфейса.
 
-ViewModel помечены `@MainActor @Observable`; SwiftUI View владеет ими через `@State` и использует binding для полей. Observation отвечает за наблюдение изменений состояния. NavigationStack, sheet, FocusState и scenePhase остаются ответственностью UI; отдельный Coordinator для текущих трёх экранов не нужен.
+ViewModel помечены `@MainActor @Observable`; SwiftUI View владеет ими через `@State` и использует binding для полей. Observation отвечает за наблюдение изменений состояния. NavigationStack, нативные DatePicker, FocusState и scenePhase остаются ответственностью UI; отдельный Coordinator для текущих трёх экранов не нужен.
 
 ## Где находятся правила
 
@@ -52,6 +52,6 @@ SignInUseCase и RegisterUseCase нормализуют email. RegisterUseCase �
 
 `python3 Scripts/check_architecture.py` читает SwiftPM manifest и проверяет граф зависимостей, импорты, отсутствие сериализации в Domain и отсутствие доступа к репозиториям из Presentation. Проверка включена в CI. Она дополняет раздельную компиляцию модулей и тесты, а не заменяет ревью поведения.
 
-Тесты Domain проверяют правила; Application — сценарии через repository spies; Data — REST/DTO и сессию через HTTP doubles; Presentation — состояния и действия ViewModel через Use Cases, без импорта Data, UIKit или Google SDK. На macOS компилируются ViewModel и форматирование ошибок; iOS Views проверяются сборкой Xcode. Полный runtime-прогон XCUITest пока не подтверждён из-за ранее обнаруженной блокировки Simulator. После перезапуска симулятора вручную проверены запуск приложения, вход существующего тестового пользователя через локальный backend и экран задач.
+Тесты Domain проверяют правила; Application — сценарии через repository spies; Data — REST/DTO и сессию через HTTP doubles; Presentation — состояния и действия ViewModel через Use Cases, без импорта Data, UIKit или Google SDK. На macOS компилируются ViewModel и форматирование ошибок; iOS Views проверяются сборкой Xcode. На iOS 26.2 прошли XCUITest-сценарии CRUD и периодов/выхода; регистрация отдельно успешно перепроверена с системной вставкой пароля, исключающей перехват событий окном AutoFill. Рабочая сборка проверена с сессией существующего пользователя локального backend.
 
 Для справки: Apple описывает [Observation и управление данными SwiftUI](https://developer.apple.com/documentation/swiftui/managing-model-data-in-your-app), SwiftPM — [targets как отдельные модули](https://docs.swift.org/latest/documentation/packagedescription/target/). MVVM — выбранный в этом приложении паттерн Presentation; SwiftUI не требует отдельного класса ViewModel для каждого View.

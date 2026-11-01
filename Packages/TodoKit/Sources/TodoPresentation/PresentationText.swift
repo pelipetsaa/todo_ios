@@ -31,7 +31,7 @@ extension TodoStatus {
 
 extension TodoPeriod {
     public var titleKey: String {
-        switch self { case .today: "Today"; case .week: "Week"; case .month: "Month" }
+        switch self { case .today: "Today"; case .week: "This week"; case .month: "This month" }
     }
 }
 
@@ -58,4 +58,14 @@ func errorKey(_ error: Error) -> String {
 
 extension TodoStatus {
     var identifier: String { switch self { case .todo: "TODO"; case .inProgress: "IN_PROGRESS"; case .done: "DONE" } }
+}
+
+extension TodoPeriod {
+    var emptyTitleKey: String {
+        switch self {
+        case .today: "Nothing planned for today"
+        case .week: "Nothing planned for this week"
+        case .month: "Nothing planned for this month"
+        }
+    }
 }

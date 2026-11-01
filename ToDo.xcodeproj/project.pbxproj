@@ -16,7 +16,6 @@
 		3BE0A71CF922EC2DD0F6FC6A /* ToDoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B63C1671EA024C8C3F526D /* ToDoApp.swift */; };
 		4620BA85D844370C76A2CCF0 /* DemoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECD4ADC0DB8E3434CEFED96 /* DemoRepository.swift */; };
 		4A6D9D347D4A7517E4770613 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 15B2E4CAF69C55DC59F27FAE /* PrivacyInfo.xcprivacy */; };
-		4CA638F9AA6E69BEC6CD19F7 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = E75C12516BB50D3534D40F01 /* GoogleSignInSwift */; };
 		9C6EE3D32B3B6612CDB41616 /* GoogleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAF6DC337EC699A2318BEF4 /* GoogleSignInService.swift */; };
 		AF1F80D2F04DF2A5F426C282 /* ToDoUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F8916574AF6E12F9BC46A7 /* ToDoUITests.swift */; };
 		BD266E3BD996BC53051E48F1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F61B21F2DBA5A51334630481 /* Foundation.framework */; };
@@ -63,7 +62,6 @@
 				39C457590263E899FF63C1C4 /* TodoData in Frameworks */,
 				2D0FEFB21ACD8F9F44F58412 /* TodoPresentation in Frameworks */,
 				C48BD6D60540D1B03F338461 /* GoogleSignIn in Frameworks */,
-				4CA638F9AA6E69BEC6CD19F7 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,7 +187,6 @@
 				576EFC96A2846090A1BE753F /* TodoData */,
 				9092DAFC08111FE713A72BCC /* TodoPresentation */,
 				211055D8E40DB919986EB666 /* GoogleSignIn */,
-				E75C12516BB50D3534D40F01 /* GoogleSignInSwift */,
 			);
 			productName = ToDo;
 			productReference = C1B51C4A82E369041186F341 /* ToDo.app */;
@@ -573,11 +570,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4AA6F46DEECA6B820DCF889A /* XCLocalSwiftPackageReference "TodoKit" */;
 			productName = TodoApplication;
-		};
-		E75C12516BB50D3534D40F01 /* GoogleSignInSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E57E3D22B106D5A8193ECE2C /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
-			productName = GoogleSignInSwift;
 		};
 		F7305121E2FD72F7C33BF095 /* TodoDomain */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -49,7 +49,7 @@ remote = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
 remote.repositoryURL = 'https://github.com/google/GoogleSignIn-iOS'
 remote.requirement = { 'kind' => 'exactVersion', 'version' => '8.0.0' }
 project.root_object.package_references << remote
-[['TodoDomain', local_package], ['TodoApplication', local_package], ['TodoData', local_package], ['TodoPresentation', local_package], ['GoogleSignIn', remote], ['GoogleSignInSwift', remote]].each do |name, package|
+[['TodoDomain', local_package], ['TodoApplication', local_package], ['TodoData', local_package], ['TodoPresentation', local_package], ['GoogleSignIn', remote]].each do |name, package|
   dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
   dependency.package = package
   dependency.product_name = name
