@@ -99,7 +99,8 @@ private struct TodoRow: View {
         HStack(spacing: 16) {
             Text(timeText).font(.body.weight(.semibold)).monospacedDigit().foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
-                Text(todo.title).font(.body).foregroundStyle(.primary).lineLimit(1)
+                // Two lines keep long titles readable next to a wide status badge.
+                Text(todo.title).font(.body).foregroundStyle(.primary).lineLimit(2)
                 Text(dateText).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
             StatusBadge(status: todo.status)
@@ -109,15 +110,16 @@ private struct TodoRow: View {
         .accessibilityElement(children: .combine)
     }
 
+    // Format styles are value types cached by Foundation, unlike a DateFormatter built on every render.
+    // The time follows the device's 12/24-hour setting; two-digit hours keep the column aligned.
     private var timeText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: todo.dueAt)
+        todo.dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .abbreviated)).minute(.twoDigits))
     }
     private var dateText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, d MMM yyyy"
-        let value = formatter.string(from: todo.dueAt)
+        let style = Date.VerbatimFormatStyle(
+            format: "\(weekday: .abbreviated), \(day: .defaultDigits) \(month: .abbreviated) \(year: .defaultDigits)",
+            locale: .current, timeZone: .current, calendar: .current)
+        let value = todo.dueAt.formatted(style)
         return value.prefix(1).uppercased() + String(value.dropFirst())
     }
 }

@@ -6,6 +6,7 @@ import TodoApplication
 struct TodoEditorView: View {
     @State private var model: TodoEditorViewModel
     @State private var confirmDelete = false
+    @State private var confirmDiscard = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Field?
     private enum Field { case title, description }
@@ -16,9 +17,7 @@ struct TodoEditorView: View {
 
     var body: some View {
         Group {
-            if model.isLoading {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.loadFailed {
+            if model.loadFailed {
                 ContentUnavailableView {
                     Label("Unable to load task", systemImage: "exclamationmark.triangle")
                 } description: {
@@ -29,7 +28,21 @@ struct TodoEditorView: View {
         .background(Color(.systemBackground))
         .navigationTitle(model.id == nil ? localized("New todo") : localized("Edit todo"))
         .navigationBarTitleDisplayMode(.inline)
+        // Hiding the system back button also disables the swipe-back gesture, so edits cannot be lost silently.
+        .navigationBarBackButtonHidden(model.isDirty)
         .toolbar {
+            if model.isDirty {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        focused = nil
+                        confirmDiscard = true
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                    }
+                    .disabled(model.isBusy)
+                    .accessibilityIdentifier("backButton")
+                }
+            }
             if model.id != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -37,7 +50,7 @@ struct TodoEditorView: View {
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
-                    .disabled(model.isBusy || model.isLoading || model.loadFailed)
+                    .disabled(model.isBusy || model.loadFailed)
                     .accessibilityIdentifier("deleteTask")
                 }
             }
@@ -46,6 +59,10 @@ struct TodoEditorView: View {
             Button("Delete", role: .destructive) { Task { if await model.delete() { dismiss() } } }
             Button("Cancel", role: .cancel) { }
         } message: { Text("This action cannot be undone.") }
+        .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) { }
+        }
         .task { await model.load() }
     }
 

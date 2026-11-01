@@ -103,11 +103,32 @@ struct APIClientTests {
         await #expect(throws: CancellationError.self) { try await request.value }
         #expect(try store.load() == nil)
     }
-    @Test func offlineLogoutStillClearsLocalSession() async throws {
+    @Test func offlineLogoutClearsLocalSessionWithoutReportingRevocationFailure() async throws {
         let store = MemoryTokenStore(oldTokens)
         let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in throw AppError.network })
-        await #expect(throws: AppError.network) { try await api.signOut() }
+        var iterator = await api.sessionUpdates().makeAsyncIterator()
+        #expect(await iterator.next() == true)
+        try await api.signOut()
+        #expect(await iterator.next() == false)
         #expect(try store.load() == nil)
+    }
+    @Test func serverErrorDuringLogoutIsNotReported() async throws {
+        let store = MemoryTokenStore(oldTokens)
+        let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(status: 500) })
+        try await api.signOut()
+        #expect(try store.load() == nil)
+    }
+    @Test func rotatedPairIsKeptInMemoryWhenPersistingFails() async throws {
+        let store = MemoryTokenStore(oldTokens, failWrites: true)
+        let transport = MockTransport { request, _ in
+            if request.url!.path.hasSuffix("/refresh") { return HTTPResponse(data: try json(newTokens), status: 200) }
+            return HTTPResponse(data: userJSON, status: request.value(forHTTPHeaderField: "Authorization") == "Bearer new-access" ? 200 : 401)
+        }
+        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        await #expect(throws: AppError.secureStorage) { try await api.currentUser() }
+        // The server already consumed the old refresh token; the next request must use the new pair instead of logging out.
+        #expect(try await api.currentUser().email == "ios@example.com")
+        #expect(await transport.requests.filter { $0.url!.path.hasSuffix("/refresh") }.count == 1)
     }
     @Test func safeReadsRetryButWritesDoNot() async throws {
         let transport = MockTransport { _, index in HTTPResponse(data: userJSON, status: index < 2 ? 503 : 200) }

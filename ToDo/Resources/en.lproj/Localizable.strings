@@ -1,6 +1,7 @@
 "A little fresh air, a fresh perspective." = "A little fresh air, a fresh perspective.";
 "Add todo" = "Add todo";
 "An account with this email already exists." = "An account with this email already exists.";
+"Back" = "Back";
 "Cancel" = "Cancel";
 "Cannot access secure storage. Please restart the app and try again." = "Cannot access secure storage. Please restart the app and try again.";
 "Cannot reach the server. Check your connection and try again." = "Cannot reach the server. Check your connection and try again.";
@@ -12,6 +13,8 @@
 "Delete" = "Delete";
 "Delete this todo?" = "Delete this todo?";
 "Description" = "Description";
+"Discard" = "Discard";
+"Discard changes?" = "Discard changes?";
 "Done" = "Done";
 "Edit todo" = "Edit todo";
 "Email" = "Email";
@@ -21,6 +24,7 @@
 "Enter your password." = "Enter your password.";
 "In progress" = "In progress";
 "Incorrect email or password." = "Incorrect email or password.";
+"Keep editing" = "Keep editing";
 "Loading tasks" = "Loading tasks";
 "Log out" = "Log out";
 "Login" = "Sign in";
@@ -45,7 +49,7 @@
 "Something went wrong" = "Something went wrong";
 "Status" = "Status";
 "Tap + to add a todo" = "Tap + to add a todo";
-"The app configuration is invalid. Check Configuration/Config.xcconfig." = "The app configuration is invalid. Check Configuration/Config.xcconfig.";
+"The app is not configured correctly. Please reinstall it or contact support." = "The app is not configured correctly. Please reinstall it or contact support.";
 "The server is temporarily unavailable. Please try again." = "The server is temporarily unavailable. Please try again.";
 "The server returned an unexpected response." = "The server returned an unexpected response.";
 "This action cannot be undone." = "This action cannot be undone.";

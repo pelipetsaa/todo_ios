@@ -14,7 +14,9 @@
         <key>CFBundleTypeRole</key><string>Editor</string>
         <key>CFBundleURLSchemes</key><array><string>$(GOOGLE_REVERSED_CLIENT_ID)</string></array>
     </dict></array>
+#if TODO_ALLOW_LOCAL_NETWORK
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+#endif
     <key>UILaunchScreen</key><dict/>
     <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
     <key>UISupportedInterfaceOrientations</key><array>

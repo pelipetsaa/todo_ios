@@ -1,6 +1,7 @@
 "A little fresh air, a fresh perspective." = "Свежий воздух и новые идеи.";
 "Add todo" = "Добавить задачу";
 "An account with this email already exists." = "Аккаунт с этой эл. почтой уже существует.";
+"Back" = "Назад";
 "Cancel" = "Отмена";
 "Cannot access secure storage. Please restart the app and try again." = "Нет доступа к защищённому хранилищу. Перезапустите приложение и попробуйте снова.";
 "Cannot reach the server. Check your connection and try again." = "Нет связи с сервером. Проверьте подключение и попробуйте ещё раз.";
@@ -12,6 +13,8 @@
 "Delete" = "Удалить";
 "Delete this todo?" = "Удалить задачу?";
 "Description" = "Описание";
+"Discard" = "Не сохранять";
+"Discard changes?" = "Отменить изменения?";
 "Done" = "Готово";
 "Edit todo" = "Редактирование";
 "Email" = "Эл. почта";
@@ -21,6 +24,7 @@
 "Enter your password." = "Введите пароль.";
 "In progress" = "В работе";
 "Incorrect email or password." = "Неверная эл. почта или пароль.";
+"Keep editing" = "Продолжить редактирование";
 "Loading tasks" = "Загрузка задач";
 "Log out" = "Выйти";
 "Login" = "Вход";
@@ -45,7 +49,7 @@
 "Something went wrong" = "Произошла ошибка";
 "Status" = "Статус";
 "Tap + to add a todo" = "Нажмите +, чтобы добавить задачу";
-"The app configuration is invalid. Check Configuration/Config.xcconfig." = "Ошибка конфигурации приложения. Проверьте Configuration/Config.xcconfig.";
+"The app is not configured correctly. Please reinstall it or contact support." = "Приложение настроено неправильно. Переустановите его или обратитесь в поддержку.";
 "The server is temporarily unavailable. Please try again." = "Сервер временно недоступен. Попробуйте ещё раз.";
 "The server returned an unexpected response." = "Сервер вернул неожиданный ответ.";
 "This action cannot be undone." = "Это действие нельзя отменить.";

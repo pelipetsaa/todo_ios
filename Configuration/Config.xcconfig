@@ -11,4 +11,10 @@ API_BASE_URL[config=Release] = https:/$()/todolist-server-zyck.onrender.com
 GOOGLE_IOS_CLIENT_ID = 942997837259-56nldcuks4gmmaju4hvr15ttik6ra6h7.apps.googleusercontent.com
 GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.942997837259-56nldcuks4gmmaju4hvr15ttik6ra6h7
 
+// The plain-HTTP localhost exception exists only in Debug; Release ships without any ATS exception.
+// -traditional keeps the preprocessor from treating "//" in plist URLs as comments.
+INFOPLIST_PREPROCESS = YES
+INFOPLIST_OTHER_PREPROCESSOR_FLAGS = -traditional
+INFOPLIST_PREPROCESSOR_DEFINITIONS[config=Debug] = TODO_ALLOW_LOCAL_NETWORK=1
+
 #include? "Local.xcconfig"

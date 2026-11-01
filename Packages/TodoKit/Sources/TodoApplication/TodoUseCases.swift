@@ -47,8 +47,21 @@ public struct DeleteTodoUseCase: Sendable {
 
 public struct NewTodoDraftUseCase: Sendable {
     private let now: @Sendable () -> Date
-    public init(now: @escaping @Sendable () -> Date = { .now }) { self.now = now }
-    public func callAsFunction() -> TodoDraft { TodoDraft(dueAt: TodoDraft.nextHour(after: now())) }
+    private let timeZone: @Sendable () -> TimeZone
+    public init(now: @escaping @Sendable () -> Date = { .now },
+                timeZone: @escaping @Sendable () -> TimeZone = { .current }) {
+        self.now = now; self.timeZone = timeZone
+    }
+    public func callAsFunction() -> TodoDraft {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone()
+        let current = now()
+        let next = TodoDraft.nextHour(after: current, calendar: calendar)
+        // After 23:00 the next full hour is tomorrow; keep a new task in today's list instead.
+        guard !calendar.isDate(next, inSameDayAs: current),
+              let endOfDay = calendar.dateInterval(of: .day, for: current)?.end else { return TodoDraft(dueAt: next) }
+        return TodoDraft(dueAt: endOfDay.addingTimeInterval(-60))
+    }
 }
 
 public struct TodoUseCases: Sendable {
@@ -65,6 +78,6 @@ public struct TodoUseCases: Sendable {
         create = CreateTodoUseCase(repository: repository)
         update = UpdateTodoUseCase(repository: repository)
         delete = DeleteTodoUseCase(repository: repository)
-        newDraft = NewTodoDraftUseCase(now: now)
+        newDraft = NewTodoDraftUseCase(now: now, timeZone: timeZone)
     }
 }

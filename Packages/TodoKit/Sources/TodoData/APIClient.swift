@@ -67,9 +67,9 @@ public actor APIClient: AuthRepository, TodoRepository {
         // Local sign-out succeeds even when revocation cannot reach the server. A storage failure stays visible.
         try endSession()
         if let oldTokens {
-            let response = try await send(makeRequest("auth/logout", method: "POST",
+            // Revocation is best effort: the device is already signed out, so server and network failures are not reported.
+            _ = try? await send(makeRequest("auth/logout", method: "POST",
                 body: APIJSON.encoder().encode(RefreshToken(refreshToken: oldTokens.refreshToken))))
-            if response.status != 401 { try check(response) }
         }
     }
 
@@ -164,7 +164,8 @@ public actor APIClient: AuthRepository, TodoRepository {
         do {
             let pair = try await task.value
             guard generation == expectedGeneration else { throw CancellationError() }
-            if tokens != pair { try store.save(pair); tokens = pair }
+            // The server has already rotated the pair: keep it in memory even if persisting it fails.
+            if tokens != pair { tokens = pair; try store.save(pair) }
             return pair
         } catch {
             if generation == expectedGeneration, error as? AppError == .sessionExpired { try endSession() }

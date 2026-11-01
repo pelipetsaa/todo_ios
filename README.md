@@ -10,7 +10,7 @@
 
 1. Откройте `ToDo.xcodeproj` в Xcode 16+ с установленной iOS platform. Дождитесь разрешения Swift Packages.
 2. Для запуска без сервера выберите схему **ToDo Demo**, iPhone/iPad Simulator и нажмите Run. Демо хранит изменения только в памяти и сбрасывает их при перезапуске.
-3. Для работы с API выберите схему **ToDo**. Debug обращается к `http://localhost:8080`, Release — к исходному серверу `https://todolist-server-zyck.onrender.com`.
+3. Для работы с API выберите схему **ToDo**. Debug обращается к `http://localhost:8080`, Release — к исходному серверу `https://todolist-server-zyck.onrender.com`. Исключение ATS для HTTP в локальной сети добавляется в Info.plist только в Debug (препроцессинг Info.plist, см. `Configuration/Config.xcconfig`).
 4. Для реального устройства скопируйте `Configuration/Local.xcconfig.example` в `Configuration/Local.xcconfig`, укажите Apple Developer Team. URL сервера также можно переопределить там. Для удалённого сервера используйте HTTPS; localhost на физическом iPhone указывает на сам телефон.
 
 Локальный сервер запускается из исходного ToDoList: `docker compose up -d`, затем `./gradlew :server:run`. Альтернатива — переопределить Debug `API_BASE_URL` на адрес развёрнутого сервера в Local.xcconfig.
@@ -64,9 +64,9 @@ xcodebuild test -project ToDo.xcodeproj -scheme ToDo \
 
 UI-тесты сами включают `--demo` или `--demo-auth`. В Release эти режимы исключены условной компиляцией. Схема ToDo работает с реальным API и не переключается на фиктивные данные при ошибке.
 
-Модули: **45 тестов Swift Testing прошли**, включая Use Cases и ViewModel. Debug и Release успешно собраны для iOS Simulator.
+Модули: **52 теста Swift Testing прошли**, включая Use Cases и ViewModel. Debug и Release успешно собраны для iOS Simulator.
 
-Автопроверки: валидация, локальные периоды/DST/границы года, ISO-8601 Kotlin, маршруты и JSON CRUD/auth, HTTP-ошибки, безопасные повторы GET, token rotation, параллельные 401, сохранение сессии при сетевых сбоях, гонка logout/refresh; UI — регистрация, создание/изменение/удаление, периоды, отмена черновика и выход. CI находится в `.github/workflows/ios.yml`.
+Автопроверки: валидация, локальные периоды/DST/границы года, ISO-8601 Kotlin, маршруты и JSON CRUD/auth, HTTP-ошибки, безопасные повторы GET, token rotation, параллельные 401, сохранение сессии при сетевых сбоях, гонка logout/refresh, выход без сети без ложной ошибки, сохранение новой пары токенов при сбое Keychain, время новой задачи около полуночи, фоновое обновление редактора без потери правок; UI — регистрация, создание/изменение/удаление, периоды, подтверждение отмены черновика и выход. CI находится в `.github/workflows/ios.yml`.
 
 Реальный интерактивный вход Google требует аккаунта пользователя и не выполняется автоматическими тестами. Доступность production backend проверяется отдельно от сборки и тестов клиента.
 

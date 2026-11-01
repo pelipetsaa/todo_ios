@@ -71,6 +71,35 @@ struct ViewModelTests {
         #expect(await model.delete())
         #expect(await repository.deletedID == "id")
     }
+    @Test func editorShowsListCopyAndRefreshesWithoutDiscardingEdits() async {
+        let listed = Todo(id: "id", title: "Listed", dueAt: .now)
+        let repository = RepositorySpy(values: [Todo(id: "id", title: "Fresh", dueAt: listed.dueAt)])
+        let model = TodoEditorViewModel(todo: listed, useCases: TodoUseCases(repository: repository))
+        #expect(model.draft.title == "Listed")
+        await model.load()
+        #expect(model.draft.title == "Fresh" && !model.isDirty)
+        model.draft.title = "Typed while refreshing"
+        await model.load()
+        #expect(model.draft.title == "Typed while refreshing" && model.isDirty)
+    }
+    @Test func editorRefreshFailureKeepsFormUsable() async {
+        let todo = Todo(id: "id", title: "Task", dueAt: .now)
+        let repository = RepositorySpy(values: [todo], error: .network)
+        let model = TodoEditorViewModel(todo: todo, useCases: TodoUseCases(repository: repository))
+        await model.load()
+        #expect(!model.loadFailed && model.error == nil && model.draft.title == "Task")
+        await repository.setError(nil)
+        #expect(await model.save())
+    }
+    @Test func editorBlocksEditingDeletedTask() async {
+        let todo = Todo(id: "missing", title: "Task", dueAt: .now)
+        let repository = RepositorySpy()
+        let model = TodoEditorViewModel(todo: todo, useCases: TodoUseCases(repository: repository))
+        await model.load()
+        #expect(model.loadFailed && model.error == AppError.notFound.messageKey)
+        #expect(await model.save() == false)
+        #expect(await repository.writeCount == 0)
+    }
     @Test func sessionObservesAndLoadsProfileWithoutDataDependency() async {
         let repository = RepositorySpy()
         let model = SessionViewModel(auth: AuthUseCases(repository: repository, identity: GoogleIdentitySpy()),

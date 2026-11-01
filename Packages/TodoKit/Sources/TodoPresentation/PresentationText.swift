@@ -14,7 +14,7 @@ public extension AppError {
         case .server: "The server is temporarily unavailable. Please try again."
         case .invalidResponse: "The server returned an unexpected response."
         case .secureStorage: "Cannot access secure storage. Please restart the app and try again."
-        case .configuration: "The app configuration is invalid. Check Configuration/Config.xcconfig."
+        case .configuration: "The app is not configured correctly. Please reinstall it or contact support."
         }
     }
 }

@@ -43,15 +43,21 @@ public enum APIJSON {
         return encoder
     }
 
+    // ISO8601DateFormatter is thread-safe; creating one per decoded date is the expensive part.
+    nonisolated(unsafe) private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    nonisolated(unsafe) private static let wholeSecondsFormatter = ISO8601DateFormatter()
+
     public static func decoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let string = try container.decode(String.self)
             // Kotlin instants may have zero, three, six or nine fractional digits.
-            let fractional = ISO8601DateFormatter()
-            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractional.date(from: string) ?? ISO8601DateFormatter().date(from: string) { return date }
+            if let date = fractionalFormatter.date(from: string) ?? wholeSecondsFormatter.date(from: string) { return date }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO-8601 instant")
         }
         return decoder

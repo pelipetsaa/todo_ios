@@ -73,7 +73,10 @@ final class ToDoUITests: XCTestCase {
         app.buttons["addTask"].tap()
         let title = app.descendants(matching: .any)["taskTitle"].firstMatch
         title.tap(); title.typeText("Unsaved task")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        // A dirty draft asks before it is thrown away.
+        app.buttons["backButton"].tap()
+        XCTAssertTrue(app.buttons["Discard"].waitForExistence(timeout: 5))
+        app.buttons["Discard"].tap()
         XCTAssertTrue(app.buttons["addTask"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Unsaved task"].exists)
         app.buttons["logoutButton"].tap()

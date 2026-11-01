@@ -7,7 +7,6 @@ import TodoApplication
 final class TodoEditorViewModel {
     var draft: TodoDraft
     private(set) var isBusy = false
-    private(set) var isLoading = false
     private(set) var loadFailed = false
     private(set) var submitted = false
     var error: String?
@@ -26,23 +25,23 @@ final class TodoEditorViewModel {
     var titleError: String? { submitted ? Validation.title(draft.title)?.messageKey : nil }
     var descriptionError: String? { submitted ? Validation.description(draft.description)?.messageKey : nil }
 
+    /// The list already supplied the task, so the form stays usable while a fresher copy is fetched in the background.
     func load() async {
         guard let id else { return }
-        isLoading = true
         loadFailed = false
         error = nil
-        defer { isLoading = false }
         do {
-            let todo = try await useCases.detail(id: id)
+            let fresh = TodoDraft(todo: try await useCases.detail(id: id))
             try Task.checkCancellation()
-            draft = TodoDraft(todo: todo)
-            original = draft
+            // Never discard edits made while the refresh was in flight.
+            if !isDirty { draft = fresh; original = fresh }
         } catch is CancellationError { }
-        catch { loadFailed = true; self.error = errorKey(error) }
+        catch AppError.notFound { loadFailed = true; self.error = AppError.notFound.messageKey }
+        catch { /* Keep the list's copy; save and delete report connectivity problems themselves. */ }
     }
 
     func save() async -> Bool {
-        guard !isBusy, !isLoading, !loadFailed else { return false }
+        guard !isBusy, !loadFailed else { return false }
         submitted = true
         error = nil
         guard titleError == nil, descriptionError == nil else { return false }
@@ -57,7 +56,7 @@ final class TodoEditorViewModel {
     }
 
     func delete() async -> Bool {
-        guard let id, !isBusy, !isLoading else { return false }
+        guard let id, !isBusy else { return false }
         isBusy = true
         error = nil
         defer { isBusy = false }
