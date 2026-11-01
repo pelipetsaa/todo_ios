@@ -1,0 +1,29 @@
+name: iOS
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Architecture boundaries
+        run: python3 Scripts/check_architecture.py
+      - name: Domain, Use Cases, Data and ViewModel tests (Swift Testing)
+        run: swift test --package-path Packages/TodoKit
+      - name: Select iPhone simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')
+          echo "TODO_SIMULATOR_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+      - name: Build and UI tests
+        run: |
+          xcodebuild test -project ToDo.xcodeproj -scheme ToDo \
+            -destination "platform=iOS Simulator,id=$TODO_SIMULATOR_ID" \
+            -parallel-testing-enabled NO CODE_SIGN_IDENTITY=- \
+            -resultBundlePath TestResults.xcresult
+      - name: Test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: TestResults.xcresult

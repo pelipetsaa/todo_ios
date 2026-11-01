@@ -1,0 +1,4 @@
+// Copy to Local.xcconfig for machine-specific overrides. The file is gitignored.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+// To use the deployed backend in Debug:
+// API_BASE_URL = https:/$()/todolist-server-zyck.onrender.com
