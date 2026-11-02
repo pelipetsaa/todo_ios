@@ -62,4 +62,21 @@ public enum APIJSON {
         }
         return decoder
     }
+
+    static func validate(_ response: HTTPResponse) throws {
+        switch response.status {
+        case 200..<300: return
+        case 400: throw AppError.validation
+        case 401: throw AppError.sessionExpired
+        case 404: throw AppError.notFound
+        case 409: throw AppError.emailTaken
+        case 429: throw AppError.rateLimited
+        default: throw AppError.server
+        }
+    }
+
+    static func decode<T: Decodable>(_ response: HTTPResponse) throws -> T {
+        do { return try decoder().decode(T.self, from: response.data) }
+        catch { throw AppError.invalidResponse }
+    }
 }

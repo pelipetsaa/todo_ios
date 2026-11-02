@@ -17,10 +17,12 @@ public final class SessionViewModel {
 
     func observe() async {
         let events = await auth.observeSession()
-        for await signedIn in events {
+        for await state in events {
             guard !Task.isCancelled else { return }
-            phase = signedIn ? .signedIn : .signedOut
-            if !signedIn { user = nil }
+            phase = state.isSignedIn ? .signedIn : .signedOut
+            if !state.isSignedIn { user = nil }
+            // The task list that saw the failing request is gone by now; explain the sign-out on the login screen.
+            if state == .expired { error = AppError.sessionExpired.messageKey }
         }
     }
 

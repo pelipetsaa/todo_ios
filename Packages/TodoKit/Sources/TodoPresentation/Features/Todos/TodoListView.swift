@@ -23,7 +23,7 @@ struct TodoListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Period", selection: $model.period) {
+            Picker(localized("Period"), selection: $model.period) {
                 ForEach(TodoPeriod.allCases) { period in Text(localized(period.titleKey)).tag(period) }
             }
             .pickerStyle(.segmented)
@@ -41,7 +41,7 @@ struct TodoListView: View {
             .refreshable { await model.load() }
             .overlay {
                 if model.isLoading && !model.hasLoaded {
-                    ProgressView().accessibilityLabel("Loading tasks")
+                    ProgressView().accessibilityLabel(localized("Loading tasks"))
                 } else if let error = model.error, !model.hasLoaded {
                     ListPlaceholder(title: error, retry: { Task { await model.load() } })
                 } else if model.hasLoaded && model.todos.isEmpty {
@@ -51,14 +51,14 @@ struct TodoListView: View {
             }
         }
         .background(Color(.systemBackground))
-        .navigationTitle("My todos")
+        .navigationTitle(localized("My todos"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await session.signOut() }
                 } label: {
-                    Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label(localized("Log out"), systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .disabled(session.isSigningOut)
                 .accessibilityIdentifier("logoutButton")
@@ -66,7 +66,7 @@ struct TodoListView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             Button { editor = EditorRoute(todo: nil) } label: {
-                Label("Add todo", systemImage: "plus")
+                Label(localized("Add todo"), systemImage: "plus")
                     .labelStyle(.iconOnly).font(.title2)
                     .frame(width: 36, height: 36)
             }
@@ -85,10 +85,7 @@ struct TodoListView: View {
             if phase == .active { Task { await model.load() } }
         }
         .navigationDestination(item: $editor) { route in
-            TodoEditorView(todo: route.todo, useCases: session.todos)
-        }
-        .onChange(of: editor?.id) { previous, current in
-            if previous != nil && current == nil { Task { await model.load() } }
+            TodoEditorView(todo: route.todo, useCases: session.todos) { model.apply($0) }
         }
     }
 }
@@ -134,8 +131,26 @@ private struct ListPlaceholder: View {
                 .padding(.top, 64).accessibilityHidden(true)
             Text(localized(title)).font(.headline).multilineTextAlignment(.center)
             if let subtitle { Text(localized(subtitle)).font(.subheadline).foregroundStyle(.secondary) }
-            if let retry { Button("Retry", action: retry).buttonStyle(.borderedProminent) }
+            if let retry { Button(localized("Retry"), action: retry).buttonStyle(.borderedProminent) }
         }.frame(maxWidth: 360).padding(32)
+    }
+}
+
+#Preview("Rows") {
+    let start = Calendar.current.startOfDay(for: .now)
+    List {
+        TodoRow(todo: Todo(id: UUID(), title: "Plan the week", dueAt: start.addingTimeInterval(9 * 3600), status: .done))
+        TodoRow(todo: Todo(id: UUID(), title: "A long title that needs a second line next to the status badge",
+                           dueAt: start.addingTimeInterval(18 * 3600)))
+        TodoRow(todo: Todo(id: UUID(), title: "Walk", dueAt: start.addingTimeInterval(12 * 3600), status: .inProgress))
+    }
+    .listStyle(.plain)
+}
+
+#Preview("Placeholders") {
+    VStack {
+        ListPlaceholder(title: TodoPeriod.today.emptyTitleKey, subtitle: "Tap + to add a todo")
+        ListPlaceholder(title: AppError.network.messageKey, retry: {})
     }
 }
 #endif

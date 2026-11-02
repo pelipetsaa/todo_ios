@@ -21,8 +21,8 @@ public struct TodoRootView: View {
             }
         }
         .task { await session.observe() }
-        .alert("Something went wrong", isPresented: Binding(get: { session.error != nil }, set: { if !$0 { session.error = nil } })) {
-            Button("OK") { session.error = nil }
+        .alert(localized("Something went wrong"), isPresented: Binding(get: { session.error != nil }, set: { if !$0 { session.error = nil } })) {
+            Button(localized("OK")) { session.error = nil }
         } message: { Text(localized(session.error ?? "")) }
     }
 }

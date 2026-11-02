@@ -33,10 +33,10 @@ ToDo/App                          Composition Root, Google SDK adapter, Debug de
 Packages/TodoKit/Sources
   TodoDomain                      Entities, правила, ошибки, repository ports
   TodoApplication                 Use Cases, identity-provider port
-  TodoData                        REST actor, DTO/mapping, URLSession, Keychain
-  TodoPresentation                SwiftUI Views, @MainActor @Observable ViewModels
+  TodoData                        APISession actor, AuthAPI/TodoAPI, DTO/mapping, URLSession, Keychain
+  TodoPresentation                SwiftUI Views, @MainActor @Observable ViewModels, RU/EN строки экранов
 Packages/TodoKit/Tests             Domain / Application / Data / Presentation tests
-ToDo/Resources                    RU/EN, иконка, privacy manifest
+ToDo/Resources                    RU/EN строки App (старт, Google, демо), иконка, privacy manifest
 ToDoUITests                       XCUITest без сервера
 Configuration                     API URL, OAuth, signing, Info.plist
 ```
@@ -64,10 +64,10 @@ xcodebuild test -project ToDo.xcodeproj -scheme ToDo \
 
 UI-тесты сами включают `--demo` или `--demo-auth`. В Release эти режимы исключены условной компиляцией. Схема ToDo работает с реальным API и не переключается на фиктивные данные при ошибке.
 
-Модули: **52 теста Swift Testing прошли**, включая Use Cases и ViewModel. Debug и Release успешно собраны для iOS Simulator.
+Модули: **59 тестов Swift Testing прошли**, включая Use Cases и ViewModel. Debug и Release успешно собраны для iOS Simulator.
 
-Автопроверки: валидация, локальные периоды/DST/границы года, ISO-8601 Kotlin, маршруты и JSON CRUD/auth, HTTP-ошибки, безопасные повторы GET, token rotation, параллельные 401, сохранение сессии при сетевых сбоях, гонка logout/refresh, выход без сети без ложной ошибки, сохранение новой пары токенов при сбое Keychain, время новой задачи около полуночи, фоновое обновление редактора без потери правок; UI — регистрация, создание/изменение/удаление, периоды, подтверждение отмены черновика и выход. CI находится в `.github/workflows/ios.yml`.
+Автопроверки: валидация, локальные периоды/DST/границы года, ISO-8601 Kotlin, маршруты и JSON CRUD/auth, HTTP-ошибки, безопасные повторы GET, token rotation, параллельные 401, сохранение сессии при сетевых сбоях, гонка logout/refresh, выход без сети без ложной ошибки, сохранение новой пары токенов при сбое Keychain, время новой задачи около полуночи, фоновое обновление редактора без потери правок, уведомление об истёкшей сессии, локальное применение изменений к списку, переводы в бандле пакета; UI — регистрация, создание/изменение/удаление, периоды, подтверждение отмены черновика и выход. CI находится в `.github/workflows/ios.yml`.
 
 Реальный интерактивный вход Google требует аккаунта пользователя и не выполняется автоматическими тестами. Доступность production backend проверяется отдельно от сборки и тестов клиента.
 
-Проект Xcode уже создан. Для его регенерации после изменения структуры файлов: установите Ruby gem `xcodeproj`, выполните `ruby Scripts/generate_project.rb`. Обычная сборка Ruby не требует.
+`ToDo.xcodeproj` хранится в git и редактируется в Xcode; генератора нет. Почти весь код и ресурсы находятся в пакете `TodoKit`, новые файлы пакета Xcode подхватывает автоматически. В проект вручную добавляются только файлы таргета приложения (`ToDo/App`, `ToDo/Resources`) и UI-тестов.

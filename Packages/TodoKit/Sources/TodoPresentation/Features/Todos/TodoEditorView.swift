@@ -10,19 +10,27 @@ struct TodoEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Field?
     private enum Field { case title, description }
+    private let onChange: (TodoChange) -> Void
 
-    init(todo: Todo?, useCases: TodoUseCases) {
+    init(todo: Todo?, useCases: TodoUseCases, onChange: @escaping (TodoChange) -> Void) {
         _model = State(initialValue: TodoEditorViewModel(todo: todo, useCases: useCases))
+        self.onChange = onChange
+    }
+
+    private func finish(_ change: TodoChange?) {
+        guard let change else { return }
+        onChange(change)
+        dismiss()
     }
 
     var body: some View {
         Group {
             if model.loadFailed {
                 ContentUnavailableView {
-                    Label("Unable to load task", systemImage: "exclamationmark.triangle")
+                    Label(localized("Unable to load task"), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(localized(model.error ?? AppError.server.messageKey))
-                } actions: { Button("Retry") { Task { await model.load() } } }
+                } actions: { Button(localized("Retry")) { Task { await model.load() } } }
             } else { form }
         }
         .background(Color(.systemBackground))
@@ -37,7 +45,7 @@ struct TodoEditorView: View {
                         focused = nil
                         confirmDiscard = true
                     } label: {
-                        Label("Back", systemImage: "chevron.backward")
+                        Label(localized("Back"), systemImage: "chevron.backward")
                     }
                     .disabled(model.isBusy)
                     .accessibilityIdentifier("backButton")
@@ -48,20 +56,20 @@ struct TodoEditorView: View {
                     Button {
                         confirmDelete = true
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(localized("Delete"), systemImage: "trash")
                     }
                     .disabled(model.isBusy || model.loadFailed)
                     .accessibilityIdentifier("deleteTask")
                 }
             }
         }
-        .alert("Delete this todo?", isPresented: $confirmDelete) {
-            Button("Delete", role: .destructive) { Task { if await model.delete() { dismiss() } } }
-            Button("Cancel", role: .cancel) { }
-        } message: { Text("This action cannot be undone.") }
-        .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { dismiss() }
-            Button("Keep editing", role: .cancel) { }
+        .alert(localized("Delete this todo?"), isPresented: $confirmDelete) {
+            Button(localized("Delete"), role: .destructive) { Task { finish(await model.delete()) } }
+            Button(localized("Cancel"), role: .cancel) { }
+        } message: { Text(localized("This action cannot be undone.")) }
+        .confirmationDialog(localized("Discard changes?"), isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button(localized("Discard"), role: .destructive) { dismiss() }
+            Button(localized("Keep editing"), role: .cancel) { }
         }
         .task { await model.load() }
     }
@@ -82,20 +90,20 @@ struct TodoEditorView: View {
                 }
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Date").font(.subheadline)
-                        DatePicker("Date", selection: $model.draft.dueAt, displayedComponents: .date)
+                        Text(localized("Date")).font(.subheadline)
+                        DatePicker(localized("Date"), selection: $model.draft.dueAt, displayedComponents: .date)
                             .labelsHidden().datePickerStyle(.compact)
                             .accessibilityIdentifier("taskDate")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Time").font(.subheadline)
-                        DatePicker("Time", selection: $model.draft.dueAt, displayedComponents: .hourAndMinute)
+                        Text(localized("Time")).font(.subheadline)
+                        DatePicker(localized("Time"), selection: $model.draft.dueAt, displayedComponents: .hourAndMinute)
                             .labelsHidden().datePickerStyle(.compact)
                             .accessibilityIdentifier("taskTime")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text("Status").font(.subheadline.weight(.medium))
-                Picker("Status", selection: $model.draft.status) {
+                Text(localized("Status")).font(.subheadline.weight(.medium))
+                Picker(localized("Status"), selection: $model.draft.status) {
                     ForEach(TodoStatus.allCases, id: \.self) { status in
                         Text(localized(status.titleKey)).tag(status)
                             .accessibilityIdentifier("status-\(status.identifier)")
@@ -106,7 +114,7 @@ struct TodoEditorView: View {
                 if let error = model.error { ErrorNotice(message: error) }
                 PrimaryButton(title: "Save", busy: model.isBusy) {
                     focused = nil
-                    Task { if await model.save() { dismiss() } }
+                    Task { finish(await model.save()) }
                 }
                 .padding(.top, 8)
                 .accessibilityIdentifier("saveTask")

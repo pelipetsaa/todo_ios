@@ -1,7 +1,15 @@
 import Foundation
 import TodoDomain
 
+/// Presentation ships its own translations, so screens render correctly in previews and package tests,
+/// independent of the host app's bundle.
+let presentationBundle = Bundle.module
+func localized(_ key: String) -> String { String(localized: String.LocalizationValue(key), bundle: presentationBundle) }
+
 public extension AppError {
+    /// Translated text for hosts outside this module, such as the app's start-up error screen.
+    var localizedMessage: String { localized(messageKey) }
+
     var messageKey: String {
         switch self {
         case .invalidCredentials: "Incorrect email or password."

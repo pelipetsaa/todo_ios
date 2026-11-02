@@ -19,7 +19,7 @@ enum TodoStatusDTO: String, Codable {
 }
 
 struct TodoDTO: Codable {
-    let id: String
+    let id: UUID
     let title: String
     let description: String
     let dueAt: Date

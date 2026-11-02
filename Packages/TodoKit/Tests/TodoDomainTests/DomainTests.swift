@@ -20,7 +20,7 @@ struct DomainTests {
         #expect(Validation.title(String(repeating: "a", count: 201)) != nil)
         #expect(Validation.description(String(repeating: "a", count: 2000)) == nil)
         #expect(Validation.description(String(repeating: "a", count: 2001)) != nil)
-        #expect(TodoDraft(title: "  hello \n").normalized.title == "hello")
+        #expect(TodoDraft(title: "  hello \n", dueAt: .now).normalized.title == "hello")
     }
     @Test func unicodeLimitsUseKotlinUTF16Length() {
         #expect(Validation.title(String(repeating: "😀", count: 100)) == nil)

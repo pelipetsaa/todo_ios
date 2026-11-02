@@ -28,7 +28,7 @@ struct AuthView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 InputField(title: "Email", error: model.emailError) {
-                    TextField("Email", text: $model.email, prompt: Text(""))
+                    TextField(localized("Email"), text: $model.email, prompt: Text(""))
                         .textContentType(.emailAddress).keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .focused($focused, equals: .email).submitLabel(.next)
@@ -36,7 +36,7 @@ struct AuthView: View {
                         .accessibilityIdentifier("emailField")
                 }
                 InputField(title: "Password", error: model.passwordError) {
-                    SecureField("Password", text: $model.password, prompt: Text(""))
+                    SecureField(localized("Password"), text: $model.password, prompt: Text(""))
                         .textContentType(model.registration ? .newPassword : .password)
                         .focused($focused, equals: .password)
                         .submitLabel(model.registration ? .next : .go)
@@ -47,7 +47,7 @@ struct AuthView: View {
                 }
                 if model.registration {
                     InputField(title: "Confirm password", error: model.confirmationError) {
-                        SecureField("Confirm password", text: $model.confirmation, prompt: Text(""))
+                        SecureField(localized("Confirm password"), text: $model.confirmation, prompt: Text(""))
                             .textContentType(.newPassword).focused($focused, equals: .confirmation)
                             .submitLabel(.go).onSubmit(submit)
                             .accessibilityIdentifier("confirmationField")
@@ -62,7 +62,7 @@ struct AuthView: View {
                 if !model.registration {
                     HStack(spacing: 12) {
                         Rectangle().frame(height: 1).foregroundStyle(.quaternary)
-                        Text("or").font(.caption).foregroundStyle(.secondary)
+                        Text(localized("or")).font(.caption).foregroundStyle(.secondary)
                         Rectangle().frame(height: 1).foregroundStyle(.quaternary)
                     }
                     if model.isGoogleBusy {
@@ -76,7 +76,7 @@ struct AuthView: View {
                     NavigationLink {
                         AuthView(useCases: useCases, registration: true, googleButton: googleButton)
                     } label: {
-                        Text("No account yet? Create one").frame(maxWidth: .infinity, minHeight: 44)
+                        Text(localized("No account yet? Create one")).frame(maxWidth: .infinity, minHeight: 44)
                     }.accessibilityIdentifier("registerLink")
                 }
             }

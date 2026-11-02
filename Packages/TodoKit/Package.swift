@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TodoKit",
+    defaultLocalization: "en",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "TodoDomain", targets: ["TodoDomain"]),
@@ -14,7 +15,8 @@ let package = Package(
         .target(name: "TodoDomain"),
         .target(name: "TodoApplication", dependencies: ["TodoDomain"]),
         .target(name: "TodoData", dependencies: ["TodoDomain"]),
-        .target(name: "TodoPresentation", dependencies: ["TodoApplication", "TodoDomain"]),
+        .target(name: "TodoPresentation", dependencies: ["TodoApplication", "TodoDomain"],
+                resources: [.process("Resources")]),
         .testTarget(name: "TodoDomainTests", dependencies: ["TodoDomain"]),
         .target(name: "TodoTestSupport", dependencies: ["TodoApplication", "TodoDomain"], path: "Tests/Support"),
         .testTarget(name: "TodoApplicationTests", dependencies: ["TodoApplication", "TodoDomain", "TodoTestSupport"]),

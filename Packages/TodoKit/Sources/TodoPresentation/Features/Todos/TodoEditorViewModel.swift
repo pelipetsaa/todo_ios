@@ -11,7 +11,7 @@ final class TodoEditorViewModel {
     private(set) var submitted = false
     var error: String?
     private var original: TodoDraft
-    let id: String?
+    let id: Todo.ID?
     private let useCases: TodoUseCases
 
     init(todo: Todo?, useCases: TodoUseCases) {
@@ -40,28 +40,30 @@ final class TodoEditorViewModel {
         catch { /* Keep the list's copy; save and delete report connectivity problems themselves. */ }
     }
 
-    func save() async -> Bool {
-        guard !isBusy, !loadFailed else { return false }
+    /// Returns the change for the list to apply, or nil when nothing was saved.
+    func save() async -> TodoChange? {
+        guard !isBusy, !loadFailed else { return nil }
         submitted = true
         error = nil
-        guard titleError == nil, descriptionError == nil else { return false }
+        guard titleError == nil, descriptionError == nil else { return nil }
         isBusy = true
         defer { isBusy = false }
         do {
-            if let id { _ = try await useCases.update(id: id, draft: draft) }
-            else { _ = try await useCases.create(draft) }
-            return true
-        } catch is CancellationError { return false }
-        catch { self.error = errorKey(error); return false }
+            let saved: Todo
+            if let id { saved = try await useCases.update(id: id, draft: draft) }
+            else { saved = try await useCases.create(draft) }
+            return .saved(saved)
+        } catch is CancellationError { return nil }
+        catch { self.error = errorKey(error); return nil }
     }
 
-    func delete() async -> Bool {
-        guard let id, !isBusy else { return false }
+    func delete() async -> TodoChange? {
+        guard let id, !isBusy else { return nil }
         isBusy = true
         error = nil
         defer { isBusy = false }
-        do { try await useCases.delete(id: id); return true }
-        catch is CancellationError { return false }
-        catch { self.error = errorKey(error); return false }
+        do { try await useCases.delete(id: id); return .deleted(id: id) }
+        catch is CancellationError { return nil }
+        catch { self.error = errorKey(error); return nil }
     }
 }

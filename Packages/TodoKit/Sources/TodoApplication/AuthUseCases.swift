@@ -57,7 +57,7 @@ public struct SignOutUseCase: Sendable {
 public struct ObserveSessionUseCase: Sendable {
     private let repository: any AuthRepository
     public init(repository: any AuthRepository) { self.repository = repository }
-    public func callAsFunction() async -> AsyncStream<Bool> { await repository.sessionUpdates() }
+    public func callAsFunction() async -> AsyncStream<SessionState> { await repository.sessionUpdates() }
 }
 
 public struct GetCurrentUserUseCase: Sendable {

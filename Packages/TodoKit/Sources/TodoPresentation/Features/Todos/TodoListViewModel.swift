@@ -39,4 +39,10 @@ final class TodoListViewModel {
         catch { if loadID == id { self.error = errorKey(error) } }
     }
 
+    /// Applies the editor's result locally instead of reloading the whole period.
+    func apply(_ change: TodoChange) {
+        guard hasLoaded else { return }
+        todos = useCases.list.applying(change, to: todos, period: displayedPeriod)
+    }
+
 }

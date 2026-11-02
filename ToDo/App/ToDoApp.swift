@@ -8,7 +8,7 @@ import TodoPresentation
 @MainActor @Observable
 private final class Bootstrap {
     var session: SessionViewModel?
-    var error: String?
+    var error: AppError?
 
     func load() {
         error = nil
@@ -26,9 +26,10 @@ private final class Bootstrap {
             #if !DEBUG
             guard url.scheme == "https" else { throw AppError.configuration }
             #endif
-            let api = try APIClient(baseURL: url)
-            session = SessionViewModel(auth: AuthUseCases(repository: api, identity: GoogleSignInService()), todos: TodoUseCases(repository: api))
-        } catch { self.error = (error as? AppError ?? .server).messageKey }
+            let api = try APISession(baseURL: url)
+            session = SessionViewModel(auth: AuthUseCases(repository: AuthAPI(session: api), identity: GoogleSignInService()),
+                                       todos: TodoUseCases(repository: TodoAPI(session: api)))
+        } catch { self.error = error as? AppError ?? .server }
     }
 }
 
@@ -43,7 +44,7 @@ struct ToDoApp: App {
                 } else if let error = bootstrap.error {
                     ContentUnavailableView {
                         Label("Unable to start", systemImage: "exclamationmark.triangle")
-                    } description: { Text(localized(error)) }
+                    } description: { Text(error.localizedMessage) }
                     actions: { Button("Try again") { bootstrap.load() } }
                 } else { ProgressView() }
             }

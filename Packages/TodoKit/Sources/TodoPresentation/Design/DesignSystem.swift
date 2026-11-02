@@ -3,8 +3,6 @@ import SwiftUI
 import TodoDomain
 import TodoApplication
 
-func localized(_ key: String) -> String { String(localized: String.LocalizationValue(key)) }
-
 extension TodoStatus {
     var color: Color {
         switch self { case .todo: .secondary; case .inProgress: .accentColor; case .done: .teal }
@@ -70,5 +68,16 @@ struct FieldError: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+}
+
+#Preview("Components") {
+    VStack(alignment: .leading, spacing: 16) {
+        HStack { ForEach(TodoStatus.allCases, id: \.self) { StatusBadge(status: $0) } }
+        InputField(title: "Title", error: ValidationIssue.titleBlank.messageKey) { TextField("", text: .constant("")) }
+        ErrorNotice(message: AppError.network.messageKey)
+        PrimaryButton(title: "Save") {}
+        PrimaryButton(title: "Save", busy: true) {}
+    }
+    .padding()
 }
 #endif

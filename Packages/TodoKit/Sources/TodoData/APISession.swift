@@ -1,17 +1,20 @@
 import Foundation
 import TodoDomain
 
-/// A single actor owns the session, serializes token rotation and prevents stale requests from reviving a logged-out session.
-public actor APIClient: AuthRepository, TodoRepository {
+/// Owns the token pair: persistence, rotation and authorized requests. One actor serializes token rotation,
+/// and `generation` prevents stale responses from reviving a session that has ended in the meantime.
+/// Endpoint knowledge and DTO mapping live in AuthAPI and TodoAPI.
+public actor APISession {
     private let baseURL: URL
     private let transport: any HTTPTransport
     private let store: any TokenStore
     private let retryDelay: UInt64
     private var tokens: SessionTokens?
+    private var state: SessionState
     private var generation = 0
     private var refreshTask: Task<SessionTokens, Error>?
     private var refreshID: UUID?
-    private var observers: [UUID: AsyncStream<Bool>.Continuation] = [:]
+    private var observers: [UUID: AsyncStream<SessionState>.Continuation] = [:]
 
     public init(baseURL: URL, store: any TokenStore = KeychainTokenStore(),
                 transport: any HTTPTransport = URLSessionTransport(), retryDelay: UInt64 = 300_000_000) throws {
@@ -23,101 +26,67 @@ public actor APIClient: AuthRepository, TodoRepository {
         self.store = store
         self.transport = transport
         self.retryDelay = retryDelay
-        self.tokens = try store.load()
+        let saved = try store.load()
+        self.tokens = saved
+        self.state = saved == nil ? .signedOut : .signedIn
     }
 
-    public func sessionUpdates() -> AsyncStream<Bool> {
+    func updates() -> AsyncStream<SessionState> {
         let id = UUID()
-        let (stream, continuation) = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let (stream, continuation) = AsyncStream<SessionState>.makeStream(bufferingPolicy: .bufferingNewest(1))
         observers[id] = continuation
-        continuation.yield(tokens != nil)
+        // A late subscriber learns the current state, not an expiry that happened before it subscribed.
+        continuation.yield(state == .expired ? .signedOut : state)
         continuation.onTermination = { [weak self] _ in Task { await self?.removeObserver(id) } }
         return stream
     }
 
     private func removeObserver(_ id: UUID) { observers[id] = nil }
-    private func publishSession() { for observer in observers.values { observer.yield(tokens != nil) } }
-
-    public func signIn(email: String, password: String) async throws {
-        try await authenticate(path: "auth/login", body: Credentials(email: email, password: password))
-    }
-    public func register(email: String, password: String) async throws {
-        try await authenticate(path: "auth/register", body: Credentials(email: email, password: password))
-    }
-    public func signIn(googleIDToken: String) async throws {
-        try await authenticate(path: "auth/google", body: GoogleToken(idToken: googleIDToken))
+    private func publish(_ newState: SessionState) {
+        state = newState
+        for observer in observers.values { observer.yield(newState) }
     }
 
-    private func authenticate<T: Encodable & Sendable>(path: String, body: T) async throws {
+    func authenticate<T: Encodable & Sendable>(path: String, body: T) async throws {
         let requestGeneration = generation
-        let response = try await send(makeRequest(path, method: "POST", body: APIJSON.encoder().encode(body)))
+        let response = try await send(request(path, method: "POST", body: APIJSON.encoder().encode(body)))
         try Task.checkCancellation()
         guard requestGeneration == generation else { throw CancellationError() }
         if response.status == 401 { throw AppError.invalidCredentials }
-        try check(response)
-        let pair: SessionTokens = try decode(response)
+        try APIJSON.validate(response)
+        let pair: SessionTokens = try APIJSON.decode(response)
         try store.save(pair)
         tokens = pair
         generation += 1
-        publishSession()
+        publish(.signedIn)
     }
 
-    public func signOut() async throws {
+    func signOut() async throws {
         let oldTokens = tokens
         // Local sign-out succeeds even when revocation cannot reach the server. A storage failure stays visible.
-        try endSession()
+        try endSession(.signedOut)
         if let oldTokens {
             // Revocation is best effort: the device is already signed out, so server and network failures are not reported.
-            _ = try? await send(makeRequest("auth/logout", method: "POST",
+            _ = try? await send(request("auth/logout", method: "POST",
                 body: APIJSON.encoder().encode(RefreshToken(refreshToken: oldTokens.refreshToken))))
         }
     }
 
-    private func endSession() throws {
+    private func endSession(_ reason: SessionState) throws {
         try store.clear()
         tokens = nil
         generation += 1
         refreshTask?.cancel()
         refreshTask = nil
         refreshID = nil
-        publishSession()
+        publish(reason)
     }
 
-    public func currentUser() async throws -> User {
-        let dto: UserDTO = try decode(await authorized("me"))
-        return dto.domain
-    }
-
-    public func todos(in range: DateInterval) async throws -> [Todo] {
-        let query = [URLQueryItem(name: "from", value: range.start.ISO8601Format()),
-                     URLQueryItem(name: "to", value: range.end.ISO8601Format())]
-        let values: [TodoDTO] = try decode(await authorized("todos", query: query))
-        return values.map(\.domain)
-    }
-    public func todo(id: String) async throws -> Todo {
-        let dto: TodoDTO = try decode(await authorized("todos/\(try safeID(id))"))
-        return dto.domain
-    }
-    public func create(_ draft: TodoDraft) async throws -> Todo {
-        let dto: TodoDTO = try decode(await authorized("todos", method: "POST", body: APIJSON.encoder().encode(TodoInputDTO(draft))))
-        return dto.domain
-    }
-    public func update(id: String, draft: TodoDraft) async throws -> Todo {
-        let dto: TodoDTO = try decode(await authorized("todos/\(try safeID(id))", method: "PUT", body: APIJSON.encoder().encode(TodoInputDTO(draft))))
-        return dto.domain
-    }
-    public func delete(id: String) async throws { _ = try await authorized("todos/\(try safeID(id))", method: "DELETE") }
-
-    private func safeID(_ id: String) throws -> String {
-        guard UUID(uuidString: id) != nil else { throw AppError.validation }
-        return id
-    }
-
-    private func authorized(_ path: String, method: String = "GET", body: Data? = nil,
-                            query: [URLQueryItem] = []) async throws -> HTTPResponse {
+    func authorized(_ path: String, method: String = "GET", body: Data? = nil,
+                    query: [URLQueryItem] = []) async throws -> HTTPResponse {
         guard let initialTokens = tokens else { throw AppError.sessionExpired }
         let requestGeneration = generation
-        var request = try makeRequest(path, method: method, body: body, query: query)
+        var request = try request(path, method: method, body: body, query: query)
         request.setValue("Bearer \(initialTokens.accessToken)", forHTTPHeaderField: "Authorization")
         var response = try await send(request)
         try Task.checkCancellation()
@@ -132,9 +101,9 @@ public actor APIClient: AuthRepository, TodoRepository {
             response = try await send(request)
             try Task.checkCancellation()
             guard generation == requestGeneration else { throw CancellationError() }
-            if response.status == 401 { try endSession() }
+            if response.status == 401 { try endSession(.expired) }
         }
-        try check(response)
+        try APIJSON.validate(response)
         return response
     }
 
@@ -144,16 +113,14 @@ public actor APIClient: AuthRepository, TodoRepository {
         let id: UUID
         if let existing = refreshTask, let existingID = refreshID { task = existing; id = existingID }
         else {
-            let request = try makeRequest("auth/refresh", method: "POST",
-                                          body: APIJSON.encoder().encode(RefreshToken(refreshToken: current.refreshToken)))
+            let request = try request("auth/refresh", method: "POST",
+                                      body: APIJSON.encoder().encode(RefreshToken(refreshToken: current.refreshToken)))
             let transport = transport
             task = Task {
                 let response = try await transport.send(request)
                 if [400, 401].contains(response.status) { throw AppError.sessionExpired }
-                try Self.validateResponse(response)
-                guard let pair = try? APIJSON.decoder().decode(SessionTokens.self, from: response.data) else {
-                    throw AppError.invalidResponse
-                }
+                try APIJSON.validate(response)
+                let pair: SessionTokens = try APIJSON.decode(response)
                 return pair
             }
             id = UUID()
@@ -168,13 +135,13 @@ public actor APIClient: AuthRepository, TodoRepository {
             if tokens != pair { tokens = pair; try store.save(pair) }
             return pair
         } catch {
-            if generation == expectedGeneration, error as? AppError == .sessionExpired { try endSession() }
+            if generation == expectedGeneration, error as? AppError == .sessionExpired { try endSession(.expired) }
             throw error
         }
     }
 
-    private func makeRequest(_ path: String, method: String = "GET", body: Data? = nil,
-                             query: [URLQueryItem] = []) throws -> URLRequest {
+    private func request(_ path: String, method: String = "GET", body: Data? = nil,
+                         query: [URLQueryItem] = []) throws -> URLRequest {
         var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/\(path)"), resolvingAgainstBaseURL: false)
         if !query.isEmpty { components?.queryItems = query }
         guard let url = components?.url else { throw AppError.configuration }
@@ -196,31 +163,6 @@ public actor APIClient: AuthRepository, TodoRepository {
         }
         return response
     }
-    private func check(_ response: HTTPResponse) throws { try Self.validateResponse(response) }
-    private static func validateResponse(_ response: HTTPResponse) throws {
-        switch response.status {
-        case 200..<300: return
-        case 400: throw AppError.validation
-        case 401: throw AppError.sessionExpired
-        case 404: throw AppError.notFound
-        case 409: throw AppError.emailTaken
-        case 429: throw AppError.rateLimited
-        default: throw AppError.server
-        }
-    }
-    private func decode<T: Decodable>(_ response: HTTPResponse) throws -> T {
-        do { return try APIJSON.decoder().decode(T.self, from: response.data) }
-        catch { throw AppError.invalidResponse }
-    }
 }
 
-private struct Credentials: Encodable, Sendable {
-    let email: String
-    let password: String
-    init(email: String, password: String) {
-        self.email = email
-        self.password = password
-    }
-}
-private struct GoogleToken: Encodable, Sendable { let idToken: String }
 private struct RefreshToken: Encodable, Sendable { let refreshToken: String }

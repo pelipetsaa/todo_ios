@@ -3,11 +3,11 @@ import Testing
 @testable import TodoData
 import TodoDomain
 
-struct APIClientTests {
+struct APISessionTests {
     @Test func signInEncodesCredentialsAndPersistsPair() async throws {
         let store = MemoryTokenStore()
         let transport = MockTransport { _, _ in HTTPResponse(data: try json(newTokens), status: 200) }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         try await api.signIn(email: "ios@example.com", password: "password")
         #expect(try store.load() == newTokens)
         let request = try #require(await transport.requests.first)
@@ -20,7 +20,7 @@ struct APIClientTests {
     }
     @Test func registrationAndGoogleUseContract() async throws {
         let transport = MockTransport { _, _ in HTTPResponse(data: try json(newTokens), status: 201) }
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(), transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(), transport: transport)
         try await api.register(email: "ios@example.com", password: "password")
         try await api.signIn(googleIDToken: "google-id-token")
         let requests = await transport.requests
@@ -30,11 +30,11 @@ struct APIClientTests {
     @Test func restoresSavedSessionAndPublishesLogout() async throws {
         let store = MemoryTokenStore(oldTokens)
         let transport = MockTransport { _, _ in HTTPResponse(status: 204) }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         var iterator = await api.sessionUpdates().makeAsyncIterator()
-        #expect(await iterator.next() == true)
+        #expect(await iterator.next() == .signedIn)
         try await api.signOut()
-        #expect(await iterator.next() == false)
+        #expect(await iterator.next() == .signedOut)
         #expect(try store.load() == nil)
         let request = try #require(await transport.requests.first)
         #expect(request.url?.path == "/api/v1/auth/logout")
@@ -49,7 +49,7 @@ struct APIClientTests {
             }
             return HTTPResponse(data: userJSON, status: request.value(forHTTPHeaderField: "Authorization") == "Bearer new-access" ? 200 : 401)
         }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         async let first = api.currentUser()
         async let second = api.currentUser()
         let users = try await [first, second]
@@ -61,16 +61,34 @@ struct APIClientTests {
     func rejectedRefreshEndsSession(_ status: Int) async throws {
         let store = MemoryTokenStore(oldTokens)
         let transport = MockTransport { request, _ in HTTPResponse(status: request.url!.path.hasSuffix("/refresh") ? status : 401) }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
+        var iterator = await api.sessionUpdates().makeAsyncIterator()
+        #expect(await iterator.next() == .signedIn)
         await #expect(throws: AppError.sessionExpired) { try await api.currentUser() }
         #expect(try store.load() == nil)
+        // An involuntary sign-out is distinguishable from a user's own logout.
+        #expect(await iterator.next() == .expired)
+        // A subscriber arriving later sees a plain signed-out state, so the notice is shown once.
+        var late = await api.sessionUpdates().makeAsyncIterator()
+        #expect(await late.next() == .signedOut)
+    }
+    @Test func secondUnauthorizedResponseAfterRefreshExpiresSession() async throws {
+        let store = MemoryTokenStore(oldTokens)
+        let transport = MockTransport { request, _ in
+            request.url!.path.hasSuffix("/refresh") ? HTTPResponse(data: try json(newTokens), status: 200) : HTTPResponse(status: 401)
+        }
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
+        var iterator = await api.sessionUpdates().makeAsyncIterator()
+        #expect(await iterator.next() == .signedIn)
+        await #expect(throws: AppError.sessionExpired) { try await api.currentUser() }
+        #expect(await iterator.next() == .expired)
     }
     @Test func transientRefreshFailureKeepsSession() async throws {
         let store = MemoryTokenStore(oldTokens)
         let transport = MockTransport { request, _ in
             HTTPResponse(status: request.url!.path.hasSuffix("/refresh") ? 503 : 401)
         }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         await #expect(throws: AppError.server) { try await api.currentUser() }
         #expect(try store.load() == oldTokens)
     }
@@ -80,7 +98,7 @@ struct APIClientTests {
             if request.url!.path.hasSuffix("/refresh") { throw AppError.network }
             return HTTPResponse(status: 401)
         }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         await #expect(throws: AppError.network) { try await api.currentUser() }
         #expect(try store.load() == oldTokens)
     }
@@ -95,7 +113,7 @@ struct APIClientTests {
             }
             return HTTPResponse(status: request.url!.path.hasSuffix("/logout") ? 204 : 401)
         }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         let request = Task { try await api.currentUser() }
         await started.wait()
         try await api.signOut()
@@ -105,16 +123,16 @@ struct APIClientTests {
     }
     @Test func offlineLogoutClearsLocalSessionWithoutReportingRevocationFailure() async throws {
         let store = MemoryTokenStore(oldTokens)
-        let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in throw AppError.network })
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: MockTransport { _, _ in throw AppError.network })
         var iterator = await api.sessionUpdates().makeAsyncIterator()
-        #expect(await iterator.next() == true)
+        #expect(await iterator.next() == .signedIn)
         try await api.signOut()
-        #expect(await iterator.next() == false)
+        #expect(await iterator.next() == .signedOut)
         #expect(try store.load() == nil)
     }
     @Test func serverErrorDuringLogoutIsNotReported() async throws {
         let store = MemoryTokenStore(oldTokens)
-        let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(status: 500) })
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(status: 500) })
         try await api.signOut()
         #expect(try store.load() == nil)
     }
@@ -124,7 +142,7 @@ struct APIClientTests {
             if request.url!.path.hasSuffix("/refresh") { return HTTPResponse(data: try json(newTokens), status: 200) }
             return HTTPResponse(data: userJSON, status: request.value(forHTTPHeaderField: "Authorization") == "Bearer new-access" ? 200 : 401)
         }
-        let api = try APIClient(baseURL: baseURL, store: store, transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: transport)
         await #expect(throws: AppError.secureStorage) { try await api.currentUser() }
         // The server already consumed the old refresh token; the next request must use the new pair instead of logging out.
         #expect(try await api.currentUser().email == "ios@example.com")
@@ -132,20 +150,21 @@ struct APIClientTests {
     }
     @Test func safeReadsRetryButWritesDoNot() async throws {
         let transport = MockTransport { _, index in HTTPResponse(data: userJSON, status: index < 2 ? 503 : 200) }
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport, retryDelay: 0)
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport, retryDelay: 0)
         #expect(try await api.currentUser().email == "ios@example.com")
         #expect(await transport.requests.count == 3)
         let failing = MockTransport { _, _ in HTTPResponse(status: 503) }
-        let writer = try APIClient(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: failing, retryDelay: 0)
-        await #expect(throws: AppError.server) { try await writer.create(TodoDraft(title: "Create only once")) }
+        let writer = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: failing, retryDelay: 0)
+        await #expect(throws: AppError.server) { try await writer.create(TodoDraft(title: "Create only once", dueAt: .now)) }
         #expect(await failing.requests.count == 1)
     }
     @Test func listUsesHalfOpenRangeAndMapsDTOs() async throws {
         let start = instant("2026-11-01T00:00:00Z"), end = instant("2026-11-02T00:00:00Z")
-        let values = [Todo(id: "2", title: "Later", dueAt: start.addingTimeInterval(200)), Todo(id: "1", title: "Earlier", dueAt: start.addingTimeInterval(100))]
+        let later = UUID(), earlier = UUID()
+        let values = [Todo(id: later, title: "Later", dueAt: start.addingTimeInterval(200)), Todo(id: earlier, title: "Earlier", dueAt: start.addingTimeInterval(100))]
         let transport = MockTransport { _, _ in HTTPResponse(data: try json(values), status: 200) }
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport)
-        #expect(try await api.todos(in: DateInterval(start: start, end: end)).map(\.id) == ["2", "1"])
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport)
+        #expect(try await api.todos(in: DateInterval(start: start, end: end)).map(\.id) == [later, earlier])
         let request = try #require(await transport.requests.first)
         let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
         #expect(query.first { $0.name == "from" }?.value == "2026-11-01T00:00:00Z")
@@ -156,44 +175,50 @@ struct APIClientTests {
         let transport = MockTransport { request, _ in
             HTTPResponse(data: request.httpMethod == "DELETE" ? Data() : try json(todo), status: request.httpMethod == "DELETE" ? 204 : 200)
         }
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport)
-        _ = try await api.create(TodoDraft(title: "Task"))
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport)
+        _ = try await api.create(TodoDraft(title: "Task", dueAt: todo.dueAt))
         _ = try await api.todo(id: todoID)
-        _ = try await api.update(id: todoID, draft: TodoDraft(title: "Task", status: .done))
+        _ = try await api.update(id: todoID, draft: TodoDraft(title: "Task", dueAt: todo.dueAt, status: .done))
         try await api.delete(id: todoID)
         let requests = await transport.requests
         #expect(requests.map(\.httpMethod) == ["POST", "GET", "PUT", "DELETE"])
         let body = try #require(JSONSerialization.jsonObject(with: requests[0].httpBody!) as? [String: Any])
         #expect(body["title"] as? String == "Task")
         #expect(body["status"] as? String == "TODO")
-        #expect(requests[1].url!.path == "/api/v1/todos/\(todoID)")
+        #expect(requests[1].url!.path == "/api/v1/todos/\(todoIDString)")
     }
     @Test(arguments: [(400, AppError.validation), (404, .notFound), (409, .emailTaken), (429, .rateLimited), (500, .server)])
     func mapsHTTPFailures(_ pair: (Int, AppError)) async throws {
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: MockTransport { _, _ in HTTPResponse(status: pair.0) })
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: MockTransport { _, _ in HTTPResponse(status: pair.0) })
         await #expect(throws: pair.1) { try await api.currentUser() }
     }
     @Test func invalidResponseDoesNotDestroySession() async throws {
         let store = MemoryTokenStore(oldTokens)
-        let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(data: Data("bad".utf8), status: 200) })
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(data: Data("bad".utf8), status: 200) })
         await #expect(throws: AppError.invalidResponse) { try await api.currentUser() }
         #expect(try store.load() == oldTokens)
     }
-    @Test func unauthenticatedAndInvalidIDsNeverReachTransport() async throws {
+    @Test func todoPathsUseLowercaseUUIDs() async throws {
+        let todo = Todo(id: todoID, title: "Task", dueAt: instant("2026-11-01T12:00:00Z"))
+        let transport = MockTransport { _, _ in HTTPResponse(data: try json(todo), status: 200) }
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(oldTokens), transport: transport)
+        #expect(try await api.todo(id: todoID).id == todoID)
+        #expect(await transport.requests.first?.url?.lastPathComponent == todoIDString)
+    }
+    @Test func unauthenticatedRequestsNeverReachTransport() async throws {
         let transport = MockTransport { _, _ in HTTPResponse(status: 200) }
-        let api = try APIClient(baseURL: baseURL, store: MemoryTokenStore(), transport: transport)
+        let api = try APIUnderTest(baseURL: baseURL, store: MemoryTokenStore(), transport: transport)
         await #expect(throws: AppError.sessionExpired) { try await api.currentUser() }
-        await #expect(throws: AppError.validation) { try await api.delete(id: "../me") }
         #expect(await transport.requests.isEmpty)
     }
     @Test func storageFailureDoesNotPublishSignedIn() async throws {
         let store = MemoryTokenStore(failWrites: true)
-        let api = try APIClient(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(data: try json(newTokens), status: 200) })
+        let api = try APIUnderTest(baseURL: baseURL, store: store, transport: MockTransport { _, _ in HTTPResponse(data: try json(newTokens), status: 200) })
         await #expect(throws: AppError.secureStorage) { try await api.signIn(email: "a@b.com", password: "password") }
         #expect(try store.load() == nil)
     }
     @Test(arguments: ["http://example.com", "https://user:pass@example.com", "https://example.com?token=bad"])
     func rejectsUnsafeConfiguration(_ value: String) {
-        #expect(throws: AppError.configuration) { try APIClient(baseURL: URL(string: value)!, store: MemoryTokenStore()) }
+        #expect(throws: AppError.configuration) { try APIUnderTest(baseURL: URL(string: value)!, store: MemoryTokenStore()) }
     }
 }

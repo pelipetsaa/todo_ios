@@ -1,7 +1,7 @@
 import Foundation
 
 public protocol AuthRepository: Sendable {
-    func sessionUpdates() async -> AsyncStream<Bool>
+    func sessionUpdates() async -> AsyncStream<SessionState>
     func signIn(email: String, password: String) async throws
     func register(email: String, password: String) async throws
     func signIn(googleIDToken: String) async throws
@@ -11,8 +11,8 @@ public protocol AuthRepository: Sendable {
 
 public protocol TodoRepository: Sendable {
     func todos(in range: DateInterval) async throws -> [Todo]
-    func todo(id: String) async throws -> Todo
+    func todo(id: Todo.ID) async throws -> Todo
     func create(_ draft: TodoDraft) async throws -> Todo
-    func update(id: String, draft: TodoDraft) async throws -> Todo
-    func delete(id: String) async throws
+    func update(id: Todo.ID, draft: TodoDraft) async throws -> Todo
+    func delete(id: Todo.ID) async throws
 }
